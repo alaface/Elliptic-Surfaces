@@ -109,13 +109,16 @@ end function;
 //   - m: A scalar value
 // Output:
 //   - curve: all the (-1)-curves of the surface
-FindSections := function(cur, m)
+FindSections := function(cur)
     Pic := ToricLattice(10);
     cur := [Pic!Eltseq(C) : C in cur];
     D := DiagonalMatrix([1] cat [-1 : i in [2..10]]);
     K := Pic!([-3] cat [1 : i in [2..10]]);
     P := &meet[HalfspaceToPolyhedron(C * D, 0) : C in cur] meet HyperplaneToPolyhedron(-K * D, 1);
-    pts := [Pic!Eltseq(p) : p in Points(CompactPart(P))];
+    P := CompactPart(P);
+    P := Polytope([Pic!Eltseq(p) : p in Vertices(P)]);
+    Q,f := Quotient(K);
+    pts := [Preimage(f,p) : p in Points(Image(f,P))];
     curve := [];
     for p in pts do
         Append(~curve, p + Quotrem(qua(p, p) + 1, 2) * K);
