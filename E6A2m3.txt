@@ -1,0 +1,1224 @@
+///////////////////////////////////////////////////////////////////////////
+//  E6A2.m
+//
+//  Routines specific to the case Lambda = E6 + A2, index 3.
+//
+//  Usage:
+//      load "lib.m";
+//      load "E6A2.m";
+//      PrintE6A2Index3SurfacesRES();
+//
+//  This file assumes that lib.m has already been loaded.
+//
+//  Convention:
+//      In the affine E8 basis used in lib.m, the root subsystem E6 + A2
+//      is obtained by deleting the node alpha_7. Since the coefficient of
+//      alpha_7 in the highest root is 3, the quotient E8/(E6+A2) is Z/3.
+//      Thus the quotient map is read on the 7th coordinate.
+///////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////
+//  Quotient E8/(E6+A2) ~= Z/3
+///////////////////////////////////////////////////////////////////////////
+
+E6A2FiniteQuotientMapRES := function()
+    local Z8, A, u, q;
+
+    Z8 := RSpace(Integers(), 8);
+    A := AbelianGroup([3]);
+    u := A.1;
+
+    // quotient detected on the deleted node alpha_7
+    q := map< Z8 -> A | x :-> (Integers()!Eltseq(x)[7]) * u >;
+
+    return q, A;
+end function;
+
+///////////////////////////////////////////////////////////////////////////
+//  Case 1: split extension
+//
+//      0 -> Z/3 -> (Z/3)^2 -> Z/3 -> 0
+///////////////////////////////////////////////////////////////////////////
+
+E6A2Index3SplitRES := function()
+    local q, A, u;
+    local Gmid, phiGA;
+    local liftZ9, kerGen, imagesZ9;
+    local fPic, baseImgs;
+    local CurMinus2, CurMinus1, M;
+
+    q, A := E6A2FiniteQuotientMapRES();
+    u := A.1;
+
+    Gmid := AbelianGroup([3,3]);
+
+    // Projection (Z/3)^2 -> Z/3.
+    // The kernel is the second factor.
+    phiGA := hom< Gmid -> A | [u, A!0] >;
+
+    liftZ9, kerGen, imagesZ9 := LiftHomomorphismRES(phiGA, q);
+    fPic, baseImgs := BuildPicardFiniteMapFromAffineLiftRES(imagesZ9, Gmid);
+
+    CurMinus2, M := FindCompRES(fPic);
+    CurMinus1 := FindSectionsRES(CurMinus2);
+
+    return fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9;
+end function;
+
+///////////////////////////////////////////////////////////////////////////
+//  Case 2: non-split extension
+//
+//      0 -> Z/3 -> Z/9 -> Z/3 -> 0
+///////////////////////////////////////////////////////////////////////////
+
+E6A2Index3NonSplitRES := function()
+    local q, A, u;
+    local Gmid, phiGA;
+    local liftZ9, kerGen, imagesZ9;
+    local fPic, baseImgs;
+    local CurMinus2, CurMinus1, M;
+
+    q, A := E6A2FiniteQuotientMapRES();
+    u := A.1;
+
+    Gmid := AbelianGroup([9]);
+
+    // Reduction modulo 3.
+    phiGA := hom< Gmid -> A | [u] >;
+
+    liftZ9, kerGen, imagesZ9 := LiftHomomorphismRES(phiGA, q);
+    fPic, baseImgs := BuildPicardFiniteMapFromAffineLiftRES(imagesZ9, Gmid);
+
+    CurMinus2, M := FindCompRES(fPic);
+    CurMinus1 := FindSectionsRES(CurMinus2);
+
+    return fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9;
+end function;
+
+///////////////////////////////////////////////////////////////////////////
+//  Printing utilities
+///////////////////////////////////////////////////////////////////////////
+
+PrintClassSetE6A2RES := procedure(S)
+    local x;
+    for x in Setseq(S) do
+        print Eltseq(x);
+    end for;
+end procedure;
+
+PrintClassSeqE6A2RES := procedure(Q)
+    local x;
+    for x in Q do
+        print Eltseq(x);
+    end for;
+end procedure;
+
+PrintE6A2Index3CaseRES := procedure(name, fPic, CurMinus2, CurMinus1, M)
+    local Pic, K;
+
+    Pic := PicardLatticeRES();
+    K := CanonicalClassRES(Pic);
+
+    print "============================================================";
+    print name;
+    print "============================================================";
+    print "f(K_X) =", fPic(K);
+    print "order of f(K_X) =", Order(fPic(K));
+    print "#(-2)-curves =", #CurMinus2;
+    print "#(-1)-curves =", #CurMinus1;
+    print "rank of intersection matrix =", Rank(ChangeRing(M, Rationals()));
+    print "";
+
+    print "(-2)-curves:";
+    PrintClassSetE6A2RES(CurMinus2);
+    print "";
+
+    print "(-1)-curves:";
+    PrintClassSeqE6A2RES(CurMinus1);
+    print "";
+
+    print "intersection matrix of (-2)-curves:";
+    print M;
+    print "";
+end procedure;
+
+///////////////////////////////////////////////////////////////////////////
+//  Main routine
+///////////////////////////////////////////////////////////////////////////
+
+PrintE6A2Index3SurfacesRES := procedure()
+    local f1, C21, C11, M1, B1, I1;
+    local f2, C22, C12, M2, B2, I2;
+
+    f1, C21, C11, M1, B1, I1 := E6A2Index3SplitRES();
+    f2, C22, C12, M2, B2, I2 := E6A2Index3NonSplitRES();
+
+    PrintE6A2Index3CaseRES("E6+A2, index 3, split case    ((Z/3)^2)", f1, C21, C11, M1);
+    PrintE6A2Index3CaseRES("E6+A2, index 3, non-split case (Z/9)",    f2, C22, C12, M2);
+end procedure;
+
+///////////////////////////////////////////////////////////////////////////
+//  9. FAST UNIQUE H SEARCH BY PRESCRIBING INTERSECTIONS WITH (-2)-CURVES
+//
+//  We prescribe the values
+//      H.C_i = a_i
+//  on an independent set of (-2)-curves, together with
+//      H.K = -3,
+//  and then impose
+//      H^2 = 1.
+//
+//  In the E6+A2 case, the (-2)-curves have rank 8.  Together with K this
+//  gives 9 linear conditions, hence an affine line in Pic(X)_Q.  Imposing
+//  H^2=1 gives finitely many candidates.  We keep the first integral nef one.
+///////////////////////////////////////////////////////////////////////////
+
+E6A2AsPicSeqRES := function(Q, Pic)
+    local C0;
+
+    if Type(Q) eq SetEnum then
+        return [Pic!Eltseq(C0) : C0 in Setseq(Q)];
+    end if;
+
+    return [Pic!Eltseq(C0) : C0 in Q];
+end function;
+
+
+E6A2IntersectionRowRES := function(C)
+    local v;
+
+    v := Eltseq(C);
+
+    // For H=(h_0,...,h_9), one has
+    // H.C = h_0 c_0 - h_1 c_1 - ... - h_9 c_9.
+    return [v[1]] cat [-v[i] : i in [2..10]];
+end function;
+
+
+E6A2SelfQSeqRES := function(v)
+    return v[1]^2 - &+[v[i]^2 : i in [2..10]];
+end function;
+
+
+E6A2BilQSeqRES := function(v, w)
+    return v[1]*w[1] - &+[v[i]*w[i] : i in [2..10]];
+end function;
+
+
+E6A2IntersectionMatrixRES := function(Aseq, Bseq)
+    local n, m;
+
+    n := #Aseq;
+    m := #Bseq;
+
+    if n eq 0 or m eq 0 then
+        return ZeroMatrix(Integers(), n, m);
+    end if;
+
+    return Matrix(Integers(), n, m,
+        [IntersectionRES(Aseq[i], Bseq[j]) : i in [1..n], j in [1..m]]
+    );
+end function;
+
+
+E6A2IndependentRootBasisRES := function(CurMinus2)
+    local Pic, roots, basis, r, newbasis, rr, C0;
+
+    Pic := PicardLatticeRES();
+    roots := E6A2AsPicSeqRES(CurMinus2, Pic);
+
+    basis := [];
+    r := 0;
+
+    for C0 in roots do
+        newbasis := basis cat [C0];
+        rr := Rank(Matrix(Rationals(), [Eltseq(D) : D in newbasis]));
+
+        if rr gt r then
+            Append(~basis, C0);
+            r := rr;
+        end if;
+    end for;
+
+    return basis;
+end function;
+
+
+E6A2PicClassFromRationalVectorRES := function(w, Pic)
+    local v, out, x;
+
+    v := Eltseq(w);
+    out := [];
+
+    for x in v do
+        if Denominator(x) ne 1 then
+            return false, Pic!0;
+        end if;
+
+        Append(~out, Integers()!x);
+    end for;
+
+    return true, Pic!out;
+end function;
+
+
+E6A2IsNefAgainstRES := function(H, curves)
+    local Pic, HH, C0;
+
+    Pic := Parent(H);
+    HH := Pic!Eltseq(H);
+
+    for C0 in curves do
+        if IntersectionRES(HH, Pic!Eltseq(C0)) lt 0 then
+            return false;
+        end if;
+    end for;
+
+    return true;
+end function;
+
+
+E6A2OrthogonalNegativeCurvesRES := function(H, CurMinus2, CurMinus1)
+    local Pic, HH, roots, secs, roots0, secs0, all0, C0;
+
+    Pic := PicardLatticeRES();
+    HH := Pic!Eltseq(H);
+
+    roots := E6A2AsPicSeqRES(CurMinus2, Pic);
+    secs  := E6A2AsPicSeqRES(CurMinus1, Pic);
+
+    roots0 := [C0 : C0 in roots | IntersectionRES(HH, C0) eq 0];
+    secs0  := [C0 : C0 in secs  | IntersectionRES(HH, C0) eq 0];
+
+    all0 := roots0 cat secs0;
+
+    return all0, roots0, secs0;
+end function;
+
+
+E6A2SolveHFromRootValuesRES := function(rootBasis, values)
+    local Pic, K, rows, bseq, A, AT, b, p, N, dirs, dir;
+    local pp, pv, vv, qa, qb, qc, Delta, isSq, sqrtDelta;
+    local ts, t, w, ok, Hcand, out;
+
+    Pic := PicardLatticeRES();
+    K := CanonicalClassRES(Pic);
+
+    if #rootBasis ne #values then
+        error "The number of roots and prescribed values must agree.";
+    end if;
+
+    rootBasis := E6A2AsPicSeqRES(rootBasis, Pic);
+
+    rows := [E6A2IntersectionRowRES(C0) : C0 in rootBasis]
+            cat [E6A2IntersectionRowRES(K)];
+
+    bseq := [Rationals()!a : a in values] cat [Rationals()!-3];
+
+    // Solve h * Transpose(A) = b.
+    A := Matrix(Rationals(), rows);
+    AT := Transpose(A);
+    b := Vector(Rationals(), bseq);
+
+    try
+        p := Solution(AT, b);
+    catch err
+        return [];
+    end try;
+
+    N := Nullspace(AT);
+    dirs := Basis(N);
+
+    if #dirs ne 1 then
+        return [];
+    end if;
+
+    dir := dirs[1];
+
+    pp := E6A2SelfQSeqRES(Eltseq(p));
+    pv := E6A2BilQSeqRES(Eltseq(p), Eltseq(dir));
+    vv := E6A2SelfQSeqRES(Eltseq(dir));
+
+    // Impose (p+t dir)^2 = 1.
+    qa := vv;
+    qb := 2*pv;
+    qc := pp - 1;
+
+    ts := [];
+
+    if qa eq 0 then
+        if qb ne 0 then
+            Append(~ts, -qc/qb);
+        else
+            return [];
+        end if;
+    else
+        Delta := qb^2 - 4*qa*qc;
+
+        if Delta lt 0 then
+            return [];
+        end if;
+
+        isSq, sqrtDelta := IsSquare(Delta);
+
+        if not isSq then
+            return [];
+        end if;
+
+        Append(~ts, (-qb + sqrtDelta)/(2*qa));
+
+        if sqrtDelta ne 0 then
+            Append(~ts, (-qb - sqrtDelta)/(2*qa));
+        end if;
+    end if;
+
+    out := [];
+
+    for t in ts do
+        w := p + t*dir;
+
+        ok, Hcand := E6A2PicClassFromRationalVectorRES(w, Pic);
+
+        if ok then
+            if SelfIntersectionRES(Hcand) eq 1 and IntersectionRES(Hcand, K) eq -3 then
+                Append(~out, Hcand);
+            end if;
+        end if;
+    end for;
+
+    return out;
+end function;
+
+
+forward E6A2ValueVectorsExactDeviationRES;
+
+E6A2ValueVectorsExactDeviationRES := function(n, target, dev, maxval)
+    local out, x, delta, tail;
+
+    if n eq 0 then
+        if dev eq 0 then
+            return [ [] ];
+        else
+            return [];
+        end if;
+    end if;
+
+    out := [];
+
+    for x in [0..maxval] do
+        delta := Abs(x - target);
+
+        if delta le dev then
+            for tail in E6A2ValueVectorsExactDeviationRES(n - 1, target, dev - delta, maxval) do
+                Append(~out, [x] cat tail);
+            end for;
+        end if;
+    end for;
+
+    return out;
+end function;
+
+
+E6A2FindFirstNefHByIntersectionsRES := function(CurMinus2, CurMinus1, target, maxdev, maxval)
+    local Pic, roots, secs, negs, rootBasis;
+    local dev, valueVectors, values, Hlist, H0, Hcand;
+    local rootProducts, orth, orth2, orth1, C0;
+
+    Pic := PicardLatticeRES();
+
+    roots := E6A2AsPicSeqRES(CurMinus2, Pic);
+    secs  := E6A2AsPicSeqRES(CurMinus1, Pic);
+    negs  := roots cat secs;
+
+    rootBasis := E6A2IndependentRootBasisRES(roots);
+
+    for dev in [0..maxdev] do
+        valueVectors := E6A2ValueVectorsExactDeviationRES(#rootBasis, target, dev, maxval);
+
+        for values in valueVectors do
+            Hlist := E6A2SolveHFromRootValuesRES(rootBasis, values);
+
+            for H0 in Hlist do
+                Hcand := Pic!Eltseq(H0);
+
+                if E6A2IsNefAgainstRES(Hcand, negs) then
+                    rootProducts := [IntersectionRES(Hcand, C0) : C0 in roots];
+                    orth, orth2, orth1 := E6A2OrthogonalNegativeCurvesRES(Hcand, roots, secs);
+
+                    return true, Hcand, values, rootBasis, rootProducts, orth, orth2, orth1;
+                end if;
+            end for;
+        end for;
+    end for;
+
+    return false, Pic!0, [], rootBasis, [], [], [], [];
+end function;
+
+
+PrintE6A2HFastReportRES := procedure(label, CurMinus2, CurMinus1, target, maxdev, maxval)
+    local Pic, K, ok, H, values, rootBasis, rootProducts, orth, orth2, orth1;
+    local i;
+
+    Pic := PicardLatticeRES();
+    K := CanonicalClassRES(Pic);
+
+    ok, H, values, rootBasis, rootProducts, orth, orth2, orth1 :=
+        E6A2FindFirstNefHByIntersectionsRES(CurMinus2, CurMinus1, target, maxdev, maxval);
+
+    print "============================================================";
+    print label;
+    print "============================================================";
+
+    if not ok then
+        print "No integral nef H found with these search parameters.";
+        print "target =", target;
+        print "maxdev =", maxdev;
+        print "maxval =", maxval;
+        print "";
+        return;
+    end if;
+
+    print "H =", Eltseq(H);
+    print "StdForm(H) =", Eltseq(StdFormRES(H));
+    print "H^2 =", SelfIntersectionRES(H);
+    print "H.K =", IntersectionRES(H, K);
+    print "";
+
+    print "prescribed values on the independent root basis:";
+    print values;
+    print "";
+
+    print "independent (-2)-curves used:";
+    for i in [1..#rootBasis] do
+        print i, Eltseq(rootBasis[i]);
+    end for;
+    print "";
+
+    print "H.C for all (-2)-curves:";
+    print rootProducts;
+    print "";
+
+    print "nef check: true";
+    print "# negative curves orthogonal to H =", #orth;
+    print "# (-2)-curves orthogonal to H     =", #orth2;
+    print "# (-1)-curves orthogonal to H     =", #orth1;
+    print "";
+
+    print "orthogonal negative curves:";
+    PrintClassSeqE6A2RES(orth);
+    print "";
+end procedure;
+
+
+PrintE6A2Index3HFastRES := procedure(target, maxdev, maxval)
+    local f1, C21, C11, M1, B1, I1;
+    local f2, C22, C12, M2, B2, I2;
+
+    f1, C21, C11, M1, B1, I1 := E6A2Index3SplitRES();
+    f2, C22, C12, M2, B2, I2 := E6A2Index3NonSplitRES();
+
+    PrintE6A2HFastReportRES(
+        "E6+A2, index 3, split case: nef H",
+        C21, C11, target, maxdev, maxval
+    );
+
+    PrintE6A2HFastReportRES(
+        "E6+A2, index 3, non-split case: nef H",
+        C22, C12, target, maxdev, maxval
+    );
+end procedure;
+
+
+PrintE6A2Index3HFastDefaultRES := procedure()
+    PrintE6A2Index3HFastRES(1, 4, 4);
+end procedure;
+
+
+///////////////////////////////////////////////////////////////////////////
+//  10. REWRITE (-2)-CURVES IN THE TRUE PLANE BASIS
+//
+//  The curves orthogonal to H are the irreducible exceptional curves
+//  contracted by X -> P^2.  If some base points are infinitely near, these
+//  irreducible exceptional curves are not necessarily the total exceptional
+//  basis.  We reconstruct the total exceptional classes by following a
+//  blow-down sequence.
+//
+//  The resulting basis is
+//
+//      [H, F1, ..., F9]
+//
+//  with intersection matrix diag(1,-1,...,-1).
+///////////////////////////////////////////////////////////////////////////
+
+E6A2PlaneBasisFromHRES := function(H, CurMinus2, CurMinus1)
+    local Pic, HH, roots, secs, orth, orth2, orth1;
+    local remClasses, Fseq, pos, t, C, D, newClasses;
+    local basis, M, targetM, detM;
+
+    Pic := PicardLatticeRES();
+    HH := Pic!Eltseq(H);
+
+    roots := E6A2AsPicSeqRES(CurMinus2, Pic);
+    secs  := E6A2AsPicSeqRES(CurMinus1, Pic);
+
+    orth, orth2, orth1 := E6A2OrthogonalNegativeCurvesRES(HH, roots, secs);
+    remClasses := E6A2AsPicSeqRES(orth, Pic);
+
+    if #remClasses ne 9 then
+        return false, [], orth, 0;
+    end if;
+
+    Fseq := [];
+
+    while #remClasses gt 0 do
+
+        pos := 0;
+        for t in [1..#remClasses] do
+            if SelfIntersectionRES(remClasses[t]) eq -1 then
+                pos := t;
+                break;
+            end if;
+        end for;
+
+        if pos eq 0 then
+            return false, [HH] cat Fseq, orth, 0;
+        end if;
+
+        C := remClasses[pos];
+
+        // C is the total exceptional class of the current blow-down.
+        Append(~Fseq, C);
+
+        // Move the remaining curves to the next surface:
+        // D is replaced by D + (D.C)C.
+        newClasses := [];
+
+        for t in [1..#remClasses] do
+            if t ne pos then
+                D := remClasses[t];
+                Append(~newClasses, D + IntersectionRES(D, C)*C);
+            end if;
+        end for;
+
+        remClasses := newClasses;
+    end while;
+
+    basis := [HH] cat Fseq;
+
+    M := E6A2IntersectionMatrixRES(basis, basis);
+    targetM := DiagonalMatrix(Integers(), [1] cat [-1 : i in [1..9]]);
+
+    detM := Determinant(Matrix(Integers(), [Eltseq(B) : B in basis]));
+
+    if M ne targetM then
+        return false, basis, orth, detM;
+    end if;
+
+    if Abs(detM) ne 1 then
+        return false, basis, orth, detM;
+    end if;
+
+    return true, basis, orth, detM;
+end function;
+
+
+E6A2CoordinatesInPlaneBasisRES := function(D, basis)
+    local Pic, Bseq, M, Minv, v, sol, coords, x;
+
+    Pic := PicardLatticeRES();
+    Bseq := E6A2AsPicSeqRES(basis, Pic);
+    D := Pic!Eltseq(D);
+
+    M := Matrix(Rationals(), [Eltseq(B) : B in Bseq]);
+    Minv := M^(-1);
+
+    // Rows of M are the basis vectors.  If D = sum c_i B_i, then
+    // row(D) = row(c) * M, hence row(c) = row(D) * M^{-1}.
+    v := Vector(Rationals(), Eltseq(D));
+    sol := v * Minv;
+
+    coords := [];
+    for x in Eltseq(sol) do
+        if Denominator(x) ne 1 then
+            error "Non-integral coordinates in the plane basis.";
+        end if;
+
+        Append(~coords, Integers()!x);
+    end for;
+
+    return coords;
+end function;
+
+
+E6A2MinusTwoCoordinatesInPlaneBasisRES := function(H, CurMinus2, CurMinus1)
+    local Pic, ok, basis, orth, detM, roots, out, C0, coords;
+
+    Pic := PicardLatticeRES();
+
+    ok, basis, orth, detM := E6A2PlaneBasisFromHRES(H, CurMinus2, CurMinus1);
+
+    if not ok then
+        return false, basis, detM, [];
+    end if;
+
+    roots := E6A2AsPicSeqRES(CurMinus2, Pic);
+
+    out := [];
+
+    for C0 in roots do
+        coords := E6A2CoordinatesInPlaneBasisRES(C0, basis);
+        Append(~out, coords);
+    end for;
+
+    return true, basis, detM, out;
+end function;
+
+
+PrintE6A2MinusTwoCoordinatesOnlyRES := procedure(label, H, CurMinus2, CurMinus1)
+    local ok, basis, detM, coords;
+
+    ok, basis, detM, coords :=
+        E6A2MinusTwoCoordinatesInPlaneBasisRES(H, CurMinus2, CurMinus1);
+
+    print "============================================================";
+    print label;
+    print "============================================================";
+
+    if not ok then
+        print "Could not construct a diagonal plane basis.";
+        print "determinant =", detM;
+        print "";
+        return;
+    end if;
+
+    print Matrix(Integers(), coords);
+    print "";
+end procedure;
+
+
+PrintE6A2Index3MinusTwoCoordinatesOnlyRES := procedure(target, maxdev, maxval)
+    local f1, C21, C11, M1, B1, I1;
+    local f2, C22, C12, M2, B2, I2;
+    local ok1, H1, values1, rootBasis1, rootProducts1, orth1, orth21, orth11;
+    local ok2, H2, values2, rootBasis2, rootProducts2, orth2, orth22, orth12;
+
+    f1, C21, C11, M1, B1, I1 := E6A2Index3SplitRES();
+    f2, C22, C12, M2, B2, I2 := E6A2Index3NonSplitRES();
+
+    ok1, H1, values1, rootBasis1, rootProducts1, orth1, orth21, orth11 :=
+        E6A2FindFirstNefHByIntersectionsRES(C21, C11, target, maxdev, maxval);
+
+    if ok1 then
+        PrintE6A2MinusTwoCoordinatesOnlyRES(
+            "E6+A2, index 3, split case: (-2)-curves in the plane basis",
+            H1, C21, C11
+        );
+    else
+        print "No nef H found for the split case.";
+    end if;
+
+    ok2, H2, values2, rootBasis2, rootProducts2, orth2, orth22, orth12 :=
+        E6A2FindFirstNefHByIntersectionsRES(C22, C12, target, maxdev, maxval);
+
+    if ok2 then
+        PrintE6A2MinusTwoCoordinatesOnlyRES(
+            "E6+A2, index 3, non-split case: (-2)-curves in the plane basis",
+            H2, C22, C12
+        );
+    else
+        print "No nef H found for the non-split case.";
+    end if;
+end procedure;
+
+
+PrintE6A2Index3MinusTwoCoordinatesOnlyDefaultRES := procedure()
+    PrintE6A2Index3MinusTwoCoordinatesOnlyRES(1, 4, 4);
+end procedure;
+
+///////////////////////////////////////////////////////////////////////////
+//  11. PLANE CONFIGURATIONS FOR E6 + A2, INDEX 3
+//
+//  This section constructs explicit plane configurations suggested by the
+//  matrices of (-2)-curves in the plane basis.
+//
+//  Split case:
+//      8 line components,
+//      1 infinitely near point p2 over p3,
+//      1 septic component.
+//
+//  Non-split case:
+//      8 line components,
+//      1 infinitely near point p4 over p5,
+//      1 septic component.
+//
+//  The cubic G is computed as the unique cubic through the base cluster.
+//  The Halphen pencil is then generated by
+//
+//      F0 = product of the line components times the septic,
+//      G^3.
+//
+//  The septic is computed by imposing the prescribed multiplicities.
+///////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////
+//  Homogeneous forms and linear conditions
+///////////////////////////////////////////////////////////////////////////
+
+E6A2HomogeneousMonomialsRES := function(R, d)
+    local x, y, z, mons, i, j, k;
+
+    x := R.1;
+    y := R.2;
+    z := R.3;
+
+    mons := [];
+
+    for i in [0..d] do
+        for j in [0..d-i] do
+            k := d - i - j;
+            Append(~mons, x^i*y^j*z^k);
+        end for;
+    end for;
+
+    return mons;
+end function;
+
+
+E6A2LineFormFromPointsRES := function(R, P, Q)
+    local x, y, z, a, b, c;
+
+    x := R.1;
+    y := R.2;
+    z := R.3;
+
+    a := P[2]*Q[3] - P[3]*Q[2];
+    b := P[3]*Q[1] - P[1]*Q[3];
+    c := P[1]*Q[2] - P[2]*Q[1];
+
+    return a*x + b*y + c*z;
+end function;
+
+
+E6A2EvalPlaneFormRES := function(F, P)
+    return Evaluate(F, P);
+end function;
+
+
+E6A2PointChartDataRES := function(P)
+    local K, chart, p, q;
+
+    K := Universe(P);
+
+    if P[1] ne 0 then
+        chart := 1;
+        p := P[2]/P[1];
+        q := P[3]/P[1];
+    elif P[2] ne 0 then
+        chart := 2;
+        p := P[1]/P[2];
+        q := P[3]/P[2];
+    else
+        chart := 3;
+        p := P[1]/P[3];
+        q := P[2]/P[3];
+    end if;
+
+    return chart, p, q;
+end function;
+
+
+E6A2LocalExpansionRowsRES := function(R, d, P, mult)
+    local K, mons, rows, chart, p, q;
+    local A, u, v, m, expr, coeff, i, j, row;
+
+    K := BaseRing(R);
+    mons := E6A2HomogeneousMonomialsRES(R, d);
+
+    A<u,v> := PolynomialRing(K, 2);
+
+    chart, p, q := E6A2PointChartDataRES(P);
+
+    rows := [];
+
+    for i in [0..mult-1] do
+        for j in [0..mult-1-i] do
+            row := [];
+
+            for m in mons do
+                if chart eq 1 then
+                    expr := Evaluate(m, [A!1, p + u, q + v]);
+                elif chart eq 2 then
+                    expr := Evaluate(m, [p + u, A!1, q + v]);
+                else
+                    expr := Evaluate(m, [p + u, q + v, A!1]);
+                end if;
+
+                coeff := MonomialCoefficient(expr, u^i*v^j);
+                Append(~row, coeff);
+            end for;
+
+            Append(~rows, row);
+        end for;
+    end for;
+
+    return rows;
+end function;
+
+
+E6A2InfinitelyNearRowsRES := function(R, d, P, m0, minf, du, dv)
+    local K, mons, rows, chart, p, q;
+    local A, u, s, m, expr, i, j, row, uu, vv;
+
+    K := BaseRing(R);
+    mons := E6A2HomogeneousMonomialsRES(R, d);
+
+    A<u,s> := PolynomialRing(K, 2);
+
+    chart, p, q := E6A2PointChartDataRES(P);
+
+    rows := [];
+
+    // Local coordinates near P are chosen so that the infinitely near
+    // direction is the u-axis.  We write
+    //
+    //   (local coordinates) = u*(du,dv) + u*s*(-dv,du).
+    //
+    // Thus s=0 is the chosen tangent direction.
+    //
+    // If the curve has multiplicity at least m0 at P, then after the first
+    // blow-up its strict transform is obtained by dividing by u^m0.
+    // However, individual monomials are not necessarily divisible by u^m0.
+    // Therefore, at the level of linear equations, instead of dividing each
+    // monomial, we impose directly that the coefficients of
+    //
+    //      u^(m0+i) s^j,   i+j < minf,
+    //
+    // vanish in the original substituted expression.
+
+    for i in [0..minf-1] do
+        for j in [0..minf-1-i] do
+            row := [];
+
+            for m in mons do
+                uu := u*du - u*s*dv;
+                vv := u*dv + u*s*du;
+
+                if chart eq 1 then
+                    expr := Evaluate(m, [A!1, p + uu, q + vv]);
+                elif chart eq 2 then
+                    expr := Evaluate(m, [p + uu, A!1, q + vv]);
+                else
+                    expr := Evaluate(m, [p + uu, q + vv, A!1]);
+                end if;
+
+                Append(~row, MonomialCoefficient(expr, u^(m0+i)*s^j));
+            end for;
+
+            Append(~rows, row);
+        end for;
+    end for;
+
+    return rows;
+end function;
+
+
+E6A2FormFromRowsRES := function(R, d, rows)
+    local K, mons, M, N, B, coeffs, F, i;
+
+    K := BaseRing(R);
+    mons := E6A2HomogeneousMonomialsRES(R, d);
+
+    M := Matrix(K, rows);
+
+    // We want column vectors c such that M*c = 0.
+    // Magma uses row vectors for Nullspace, hence Transpose(M).
+    N := Nullspace(Transpose(M));
+    B := Basis(N);
+
+    if #B eq 0 then
+        error "No form satisfies the imposed conditions.";
+    end if;
+
+    coeffs := Eltseq(B[1]);
+
+    F := &+[coeffs[i]*mons[i] : i in [1..#mons]];
+
+    return F, coeffs, #B;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+//  Non-split model
+///////////////////////////////////////////////////////////////////////////
+
+E6A2NonSplitPlaneModelOverFunctionFieldRES := function()
+    local K, a, R, x, y, z;
+    local Pts, InfNear, Lnames, Lines;
+    local rows7, rows3, Septic, G, coeff7, coeff3, n7, n3;
+    local mult7, i, F0, checksLines;
+
+    K<a> := FunctionField(Rationals());
+    R<x,y,z> := PolynomialRing(K, 3);
+
+    // The support of p4 is p5.  The point p4 is infinitely near to p5
+    // in the tangent direction of the line p5 p9.
+    Pts := [
+        [a, a + 1, a],     // p1
+        [K!1, K!0, K!0],   // p2
+        [K!0, K!1, K!0],   // p3
+        [K!0, K!0, K!1],   // p4 support, same as p5
+        [K!0, K!0, K!1],   // p5
+        [a, a + 1, K!0],   // p6
+        [K!0, K!1, K!1],   // p7
+        [K!1, K!0, a + 1], // p8
+        [K!1, K!1, K!1]    // p9
+    ];
+
+    // p4 is infinitely near to p5, in the direction from p5 to p9.
+    // At p5=(0:0:1), in the chart z=1, this direction is (1,1).
+    InfNear := <4, 5, K!1, K!1>;
+
+    Lnames := [
+        "L279", "L258", "L139", "L156",
+        "L236", "L357", "L459", "L689"
+    ];
+
+    Lines := [
+        E6A2LineFormFromPointsRES(R, Pts[2], Pts[7]),
+        E6A2LineFormFromPointsRES(R, Pts[2], Pts[5]),
+        E6A2LineFormFromPointsRES(R, Pts[1], Pts[3]),
+        E6A2LineFormFromPointsRES(R, Pts[1], Pts[5]),
+        E6A2LineFormFromPointsRES(R, Pts[2], Pts[3]),
+        E6A2LineFormFromPointsRES(R, Pts[3], Pts[5]),
+        E6A2LineFormFromPointsRES(R, Pts[5], Pts[9]),
+        E6A2LineFormFromPointsRES(R, Pts[6], Pts[8])
+    ];
+
+    checksLines := [
+        E6A2EvalPlaneFormRES(Lines[1], Pts[9]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[2], Pts[8]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[3], Pts[9]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[4], Pts[6]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[5], Pts[6]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[6], Pts[7]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[7], Pts[9]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[8], Pts[9]) eq 0
+    ];
+
+    // Septic class:
+    // [7,-3,-2,-2,-2,-2,-2,-3,-3,-2]
+    mult7 := [3,2,2,2,2,2,3,3,2];
+
+    rows7 := [];
+    for i in [1..9] do
+        rows7 cat:= E6A2LocalExpansionRowsRES(R, 7, Pts[i], mult7[i]);
+    end for;
+
+    // Extra infinitely-near condition p4 over p5.
+    rows7 cat:= E6A2InfinitelyNearRowsRES(R, 7, Pts[5], mult7[5], mult7[4], K!1, K!1);
+
+    Septic, coeff7, n7 := E6A2FormFromRowsRES(R, 7, rows7);
+
+    // Cubic through the cluster.
+    rows3 := [];
+    for i in [1..9] do
+        rows3 cat:= E6A2LocalExpansionRowsRES(R, 3, Pts[i], 1);
+    end for;
+    rows3 cat:= E6A2InfinitelyNearRowsRES(R, 3, Pts[5], 1, 1, K!1, K!1);
+
+    G, coeff3, n3 := E6A2FormFromRowsRES(R, 3, rows3);
+
+    F0 := (&*Lines)*Septic;
+
+    return K, R, Pts, InfNear, Lnames, Lines, Septic, F0, G, checksLines, n7, n3;
+end function;
+
+
+PrintE6A2NonSplitPlaneModelOverFunctionFieldRES := procedure()
+    local K, R, Pts, InfNear, Lnames, Lines, Septic, F0, G, checksLines, n7, n3;
+    local i;
+
+    K, R, Pts, InfNear, Lnames, Lines, Septic, F0, G, checksLines, n7, n3 :=
+        E6A2NonSplitPlaneModelOverFunctionFieldRES();
+
+    print "============================================================";
+    print "E6+A2, index 3, non-split plane model over Q(a)";
+    print "============================================================";
+
+    print "Points:";
+    for i in [1..#Pts] do
+        print "p" cat IntegerToString(i) cat " =", Pts[i];
+    end for;
+    print "";
+
+    print "Infinitely near point:";
+    print "p4 is infinitely near to p5 in direction (1,1) in the chart z=1.";
+    print "";
+
+    print "Lines:";
+    for i in [1..#Lines] do
+        print Lnames[i], "=", Lines[i];
+    end for;
+    print "";
+
+    print "Line incidence checks:";
+    print checksLines;
+    print "";
+
+    print "Septic component:";
+    print Septic;
+    print "Septic nullity =", n7;
+    print "";
+
+    print "Unique cubic G:";
+    print G;
+    print "Cubic nullity =", n3;
+    print "";
+
+    print "Reducible fibre F0 = product(lines)*Septic.";
+    print "";
+end procedure;
+
+
+///////////////////////////////////////////////////////////////////////////
+//  Split model
+///////////////////////////////////////////////////////////////////////////
+
+E6A2SplitPlaneModelOverFunctionFieldRES := function()
+    local S, u, Qw, omega, K, t, b, R, x, y, z;
+    local Pts, InfNear, Lnames, Lines;
+    local rows7, rows3, Septic, G, coeff7, coeff3, n7, n3;
+    local mult7, i, F0, checksLines;
+
+    S<u> := PolynomialRing(Rationals());
+    Qw<omega> := NumberField(u^2 + u + 1);
+
+    // t is the geometric parameter; b is the tangent direction parameter
+    // for the infinitely near point p2 over p3.  One can later specialize b
+    // if desired.
+    K<t,b> := FunctionField(Qw, 2);
+    R<x,y,z> := PolynomialRing(K, 3);
+
+    // p2 is infinitely near to p3.
+    Pts := [
+        [K!1, K!0, K!0],              // p1
+        [K!0, K!1, K!0],              // p2 support, same as p3
+        [K!0, K!1, K!0],              // p3
+        [K!1, K!1, K!0],              // p4
+        [K!0, K!0, K!1],              // p5
+        [K!0, K!1, -K!omega*t],       // p6
+        [K!1 + K!omega, K!omega, K!omega*t], // p7
+        [K!1 + K!omega, K!0, K!omega*t],     // p8
+        [K!1, K!1, t]                 // p9
+    ];
+
+    // At p3=(0:1:0), in the chart y=1, the direction of p2 is (1,b).
+    InfNear := <2, 3, K!1, b>;
+
+    Lnames := [
+        "L689", "L356", "L179", "L134",
+        "L467", "L158", "L378", "L459"
+    ];
+
+    Lines := [
+        E6A2LineFormFromPointsRES(R, Pts[6], Pts[8]),
+        E6A2LineFormFromPointsRES(R, Pts[3], Pts[5]),
+        E6A2LineFormFromPointsRES(R, Pts[1], Pts[7]),
+        E6A2LineFormFromPointsRES(R, Pts[1], Pts[3]),
+        E6A2LineFormFromPointsRES(R, Pts[4], Pts[6]),
+        E6A2LineFormFromPointsRES(R, Pts[1], Pts[5]),
+        E6A2LineFormFromPointsRES(R, Pts[3], Pts[7]),
+        E6A2LineFormFromPointsRES(R, Pts[4], Pts[5])
+    ];
+
+    checksLines := [
+        E6A2EvalPlaneFormRES(Lines[1], Pts[9]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[2], Pts[6]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[3], Pts[9]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[4], Pts[4]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[5], Pts[7]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[6], Pts[8]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[7], Pts[8]) eq 0,
+        E6A2EvalPlaneFormRES(Lines[8], Pts[9]) eq 0
+    ];
+
+    // Septic class:
+    // [7,-2,-3,-3,-2,-2,-2,-2,-2,-3]
+    mult7 := [2,3,3,2,2,2,2,2,3];
+
+    rows7 := [];
+    for i in [1..9] do
+        rows7 cat:= E6A2LocalExpansionRowsRES(R, 7, Pts[i], mult7[i]);
+    end for;
+
+    // Extra infinitely-near condition p2 over p3.
+    rows7 cat:= E6A2InfinitelyNearRowsRES(R, 7, Pts[3], mult7[3], mult7[2], K!1, b);
+
+    Septic, coeff7, n7 := E6A2FormFromRowsRES(R, 7, rows7);
+
+    // Cubic through the cluster.
+    rows3 := [];
+    for i in [1..9] do
+        rows3 cat:= E6A2LocalExpansionRowsRES(R, 3, Pts[i], 1);
+    end for;
+    rows3 cat:= E6A2InfinitelyNearRowsRES(R, 3, Pts[3], 1, 1, K!1, b);
+
+    G, coeff3, n3 := E6A2FormFromRowsRES(R, 3, rows3);
+
+    F0 := (&*Lines)*Septic;
+
+    return K, R, Pts, InfNear, Lnames, Lines, Septic, F0, G, checksLines, n7, n3;
+end function;
+
+
+PrintE6A2SplitPlaneModelOverFunctionFieldRES := procedure()
+    local K, R, Pts, InfNear, Lnames, Lines, Septic, F0, G, checksLines, n7, n3;
+    local i;
+
+    K, R, Pts, InfNear, Lnames, Lines, Septic, F0, G, checksLines, n7, n3 :=
+        E6A2SplitPlaneModelOverFunctionFieldRES();
+
+    print "============================================================";
+    print "E6+A2, index 3, split plane model over Q(omega)(t,b)";
+    print "============================================================";
+
+    print "Points:";
+    for i in [1..#Pts] do
+        print "p" cat IntegerToString(i) cat " =", Pts[i];
+    end for;
+    print "";
+
+    print "Infinitely near point:";
+    print "p2 is infinitely near to p3 in direction (1,b) in the chart y=1.";
+    print "";
+
+    print "Lines:";
+    for i in [1..#Lines] do
+        print Lnames[i], "=", Lines[i];
+    end for;
+    print "";
+
+    print "Line incidence checks:";
+    print checksLines;
+    print "";
+
+    print "Septic component:";
+    print Septic;
+    print "Septic nullity =", n7;
+    print "";
+
+    print "Unique cubic G:";
+    print G;
+    print "Cubic nullity =", n3;
+    print "";
+
+    print "Reducible fibre F0 = product(lines)*Septic.";
+    print "";
+end procedure;
+
+
+PrintE6A2Index3PlaneModelsOverFunctionFieldsRES := procedure()
+    PrintE6A2SplitPlaneModelOverFunctionFieldRES();
+    PrintE6A2NonSplitPlaneModelOverFunctionFieldRES();
+end procedure;
+
+
