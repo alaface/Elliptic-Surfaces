@@ -1,0 +1,683 @@
+///////////////////////////////////////////////////////////////////////////
+//  A8.m
+//
+//  Routines specific to the case A8, index 3.
+//
+//  Usage:
+//      load "lib.m";
+//      load "A8.m";
+//      PrintA8Index3SurfacesRES();
+//
+//  This file assumes that lib.m has already been loaded.
+///////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////
+//  8. A8, INDEX 3: THE TWO SURFACES
+///////////////////////////////////////////////////////////////////////////
+
+A8FiniteQuotientMapRES := function()
+    local Z8, A, u, q;
+
+    Z8 := RSpace(Integers(), 8);
+    A := AbelianGroup([3]);
+    u := A.1;
+
+    // Quotient E8/A8 ~= Z/3 detected on the deleted node alpha_4.
+    q := map< Z8 -> A | x :-> (Integers()!Eltseq(x)[4]) * u >;
+
+    return q, A;
+end function;
+
+A8Index3SplitRES := function()
+    local q, A, u, Gmid, phiGA, liftZ9, kerGen, imagesZ9;
+    local fPic, baseImgs, CurMinus2, CurMinus1, M;
+
+    q, A := A8FiniteQuotientMapRES();
+    u := A.1;
+
+    // 0 -> Z/3 -> (Z/3)^2 -> Z/3 -> 0
+    Gmid := AbelianGroup([3,3]);
+    phiGA := hom< Gmid -> A | [u, A!0] >;
+
+    liftZ9, kerGen, imagesZ9 := LiftHomomorphismRES(phiGA, q);
+    fPic, baseImgs := BuildPicardFiniteMapFromAffineLiftRES(imagesZ9, Gmid);
+
+    CurMinus2, M := FindCompRES(fPic);
+    CurMinus1 := FindSectionsRES(CurMinus2);
+
+    return fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9;
+end function;
+
+A8Index3NonSplitRES := function()
+    local q, A, u, Gmid, phiGA, liftZ9, kerGen, imagesZ9;
+    local fPic, baseImgs, CurMinus2, CurMinus1, M;
+
+    q, A := A8FiniteQuotientMapRES();
+    u := A.1;
+
+    // 0 -> Z/3 -> Z/9 -> Z/3 -> 0
+    Gmid := AbelianGroup([9]);
+    phiGA := hom< Gmid -> A | [u] >;
+
+    liftZ9, kerGen, imagesZ9 := LiftHomomorphismRES(phiGA, q);
+    fPic, baseImgs := BuildPicardFiniteMapFromAffineLiftRES(imagesZ9, Gmid);
+
+    CurMinus2, M := FindCompRES(fPic);
+    CurMinus1 := FindSectionsRES(CurMinus2);
+
+    return fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9;
+end function;
+
+PrintClassSetRES := procedure(S)
+    local x;
+    for x in Setseq(S) do
+        print Eltseq(x);
+    end for;
+end procedure;
+
+PrintClassSeqRES := procedure(Q)
+    local x;
+    for x in Q do
+        print Eltseq(x);
+    end for;
+end procedure;
+
+PrintA8Index3CaseRES := procedure(name, fPic, CurMinus2, CurMinus1, M)
+    local Pic, K;
+
+    Pic := PicardLatticeRES();
+    K := CanonicalClassRES(Pic);
+
+    print "============================================================";
+    print name;
+    print "============================================================";
+    print "f(K_X) =", fPic(K);
+    print "order of f(K_X) =", Order(fPic(K));
+    print "#(-2)-curves =", #CurMinus2;
+    print "#(-1)-curves =", #CurMinus1;
+    print "rank of intersection matrix =", Rank(ChangeRing(M, Rationals()));
+    print "";
+
+    print "(-2)-curves:";
+    PrintClassSetRES(CurMinus2);
+    print "";
+
+    print "(-1)-curves:";
+    PrintClassSeqRES(CurMinus1);
+    print "";
+
+    print "intersection matrix of (-2)-curves:";
+    print M;
+    print "";
+end procedure;
+
+PrintA8Index3SurfacesRES := procedure()
+    local f1, C21, C11, M1, B1, I1;
+    local f2, C22, C12, M2, B2, I2;
+
+    f1, C21, C11, M1, B1, I1 := A8Index3SplitRES();
+    f2, C22, C12, M2, B2, I2 := A8Index3NonSplitRES();
+
+    PrintA8Index3CaseRES("A8, index 3, split case    ((Z/3)^2)", f1, C21, C11, M1);
+    PrintA8Index3CaseRES("A8, index 3, non-split case (Z/9)",    f2, C22, C12, M2);
+end procedure;
+
+///////////////////////////////////////////////////////////////////////////
+//  9. PLANE MODELS FOR A8, INDEX 3
+//
+//  Search for nef classes H with
+//      H^2 = 1, H.K = -3,
+//  i.e. pullbacks of lines from a plane model.
+//
+//  Then find the negative curves orthogonal to H, contract them, and
+//  compute the plane data of the (-2)-curves and of the Halphen pencil
+//  class -3K.
+///////////////////////////////////////////////////////////////////////////
+
+A8IntSqrtRES := function(N)
+    local r;
+
+    if N lt 0 then
+        error "A8IntSqrtRES expects a non-negative integer.";
+    end if;
+
+    r := 0;
+    while (r + 1)^2 le N do
+        r := r + 1;
+    end while;
+
+    return r;
+end function;
+
+forward A8IntegerVectorsSumSquaresRES;
+
+A8IntegerVectorsSumSquaresRES := function(n, S, Q)
+    local B, out, x, tail, T, R;
+
+    if n eq 0 then
+        if S eq 0 and Q eq 0 then
+            return [ [] ];
+        else
+            return [];
+        end if;
+    end if;
+
+    if Q lt 0 then
+        return [];
+    end if;
+
+    if n eq 1 then
+        if S^2 eq Q then
+            return [ [S] ];
+        else
+            return [];
+        end if;
+    end if;
+
+    // Cauchy obstruction.
+    if S^2 gt n*Q then
+        return [];
+    end if;
+
+    B := A8IntSqrtRES(Q);
+    out := [];
+
+    for x in [-B..B] do
+        T := S - x;
+        R := Q - x^2;
+
+        if R ge 0 then
+            if T^2 le (n - 1)*R then
+                for tail in A8IntegerVectorsSumSquaresRES(n - 1, T, R) do
+                    Append(~out, [x] cat tail);
+                end for;
+            end if;
+        end if;
+    end for;
+
+    return out;
+end function;
+
+
+A8IntersectionMatrixRES := function(Aseq, Bseq)
+    local n, m;
+
+    n := #Aseq;
+    m := #Bseq;
+
+    if n eq 0 or m eq 0 then
+        return ZeroMatrix(Integers(), n, m);
+    end if;
+
+    return Matrix(Integers(), n, m,
+        [IntersectionRES(Aseq[i], Bseq[j]) : i in [1..n], j in [1..m]]
+    );
+end function;
+
+
+A8IsNefAgainstRES := function(H, curves)
+    local C0;
+
+    for C0 in curves do
+        if IntersectionRES(H, C0) lt 0 then
+            return false;
+        end if;
+    end for;
+
+    return true;
+end function;
+
+
+A8LexLessRES := function(a, b)
+    local i;
+
+    for i in [1..#a] do
+        if a[i] lt b[i] then
+            return true;
+        elif a[i] gt b[i] then
+            return false;
+        end if;
+    end for;
+
+    return false;
+end function;
+
+
+A8OrthogonalNegativeCurvesRES := function(H, CurMinus2, CurMinus1)
+    local roots0, secs0, all0, C0;
+
+    roots0 := [C0 : C0 in Setseq(CurMinus2) | IntersectionRES(H, C0) eq 0];
+    secs0  := [C0 : C0 in CurMinus1       | IntersectionRES(H, C0) eq 0];
+
+    all0 := roots0 cat secs0;
+
+    return all0, roots0, secs0;
+end function;
+
+
+A8ScoreLineClassRES := function(H, CurMinus2, CurMinus1, target)
+    local roots, negs, prods, minp, maxp, bad, sumabs, sumsq;
+    local orth, d, C0, p;
+
+    roots := Setseq(CurMinus2);
+    negs := roots cat CurMinus1;
+
+    prods := [IntersectionRES(H, C0) : C0 in roots];
+
+    if #prods eq 0 then
+        minp := 0;
+        maxp := 0;
+    else
+        minp := Minimum(prods);
+        maxp := Maximum(prods);
+    end if;
+
+    bad := 0;
+    sumabs := 0;
+    sumsq := 0;
+
+    for p in prods do
+        if p ne target then
+            bad := bad + 1;
+        end if;
+        sumabs := sumabs + Abs(p - target);
+        sumsq := sumsq + (p - target)^2;
+    end for;
+
+    orth := #[C0 : C0 in negs | IntersectionRES(H, C0) eq 0];
+    d := Eltseq(H)[1];
+
+    // Lexicographic score:
+    // 1. prefer exactly 9 contracted negative curves;
+    // 2. prefer H.C = target on the (-2)-curves;
+    // 3. prefer small range of products;
+    // 4. prefer small L1 and L2 deviation from target;
+    // 5. prefer smaller plane degree in the original basis.
+    return [Abs(orth - 9), bad, maxp - minp, sumabs, sumsq, d, maxp];
+end function;
+
+
+A8InsertCandidateRES := function(out, cand, maxout)
+    local new, inserted, i;
+
+    new := [* *];
+    inserted := false;
+
+    for i in [1..#out] do
+        if not inserted and A8LexLessRES(cand[1], out[i][1]) then
+            Append(~new, cand);
+            inserted := true;
+        end if;
+        Append(~new, out[i]);
+    end for;
+
+    if not inserted then
+        Append(~new, cand);
+    end if;
+
+    while #new gt maxout do
+        Remove(~new, #new);
+    end while;
+
+    return new;
+end function;
+
+
+A8LineCandidateClassesOfDegreeRES := function(d)
+    local Pic, S, Q, vecs, out, v;
+
+    Pic := PicardLatticeRES();
+
+    // H = dL + m1E1 + ... + m9E9.
+    // Conditions:
+    //      H.K = -3  gives  sum m_i = 3 - 3d,
+    //      H^2 = 1  gives  sum m_i^2 = d^2 - 1.
+    S := 3 - 3*d;
+    Q := d^2 - 1;
+
+    vecs := A8IntegerVectorsSumSquaresRES(9, S, Q);
+
+    out := [];
+    for v in vecs do
+        Append(~out, Pic!([d] cat v));
+    end for;
+
+    return out;
+end function;
+
+
+A8FindNefPlaneClassesRES := function(CurMinus2, CurMinus1, maxd, target, maxout)
+    local Pic, K, out, d, candidates, H, negs, score, orth, orth2, orth1;
+    local rootProducts, cand;
+
+    Pic := PicardLatticeRES();
+    K := CanonicalClassRES(Pic);
+
+    out := [* *];
+
+    for d in [1..maxd] do
+        candidates := A8LineCandidateClassesOfDegreeRES(d);
+
+        for H in candidates do
+            if SelfIntersectionRES(H) eq 1 and IntersectionRES(H, K) eq -3 then
+
+                if A8IsNefAgainstRES(H, Setseq(CurMinus2)) and
+                   A8IsNefAgainstRES(H, CurMinus1) then
+
+                    score := A8ScoreLineClassRES(H, CurMinus2, CurMinus1, target);
+                    orth, orth2, orth1 := A8OrthogonalNegativeCurvesRES(H, CurMinus2, CurMinus1);
+                    rootProducts := [IntersectionRES(H, C0) : C0 in Setseq(CurMinus2)];
+
+                    cand := <score, H, rootProducts, orth, orth2, orth1>;
+                    out := A8InsertCandidateRES(out, cand, maxout);
+                end if;
+
+            end if;
+        end for;
+    end for;
+
+    return out;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+//  Blow-down simulation
+///////////////////////////////////////////////////////////////////////////
+
+A8PlaneImageForClassesRES := function(H, DisplayCurves, OrthNeg)
+    local Rseq, Eseq, degrees, pointOrder, proximities, mults;
+    local EE, RE, RR, initialRR, old, EEnew, REnew, RRnew;
+    local idxs, newidxs, jpos, t, a, b, aa, bb, ok;
+
+    Rseq := [PicardLatticeRES()!Eltseq(C0) : C0 in DisplayCurves];
+    Eseq := [PicardLatticeRES()!Eltseq(E0) : E0 in OrthNeg];
+
+    degrees := [IntersectionRES(H, C0) : C0 in Rseq];
+
+    EE := A8IntersectionMatrixRES(Eseq, Eseq);
+    RE := A8IntersectionMatrixRES(Rseq, Eseq);
+    RR := A8IntersectionMatrixRES(Rseq, Rseq);
+    initialRR := RR;
+
+    idxs := [i : i in [1..#Eseq]];
+    pointOrder := [];
+    proximities := [];
+    mults := [ [] : i in [1..#Rseq] ];
+
+    ok := true;
+
+    while #idxs gt 0 do
+
+        jpos := 0;
+        for t in [1..#idxs] do
+            if EE[t,t] eq -1 then
+                jpos := t;
+                break;
+            end if;
+        end for;
+
+        if jpos eq 0 then
+            ok := false;
+            return <ok, Rseq, degrees, pointOrder, mults, proximities, initialRR, RR>;
+        end if;
+
+        // The curve E_{idxs[jpos]} is contracted now.
+        Append(~pointOrder, idxs[jpos]);
+
+        // Multiplicity of each displayed curve at this point.
+        for a in [1..#Rseq] do
+            Append(~mults[a], Integers()!RE[a,jpos]);
+        end for;
+
+        // Proximity data:
+        // if a remaining exceptional curve meets the one being contracted,
+        // then the current point is infinitely near to that later point.
+        for t in [1..#idxs] do
+            if t ne jpos and EE[jpos,t] gt 0 then
+                Append(~proximities, <idxs[jpos], idxs[t], Integers()!EE[jpos,t]>);
+            end if;
+        end for;
+
+        old := [t : t in [1..#idxs] | t ne jpos];
+
+        newidxs := [];
+        for t in old do
+            Append(~newidxs, idxs[t]);
+        end for;
+
+        if #old eq 0 then
+            EEnew := ZeroMatrix(Integers(), 0, 0);
+        else
+            EEnew := Matrix(Integers(), #old, #old,
+                [
+                    EE[old[aa], old[bb]]
+                    + EE[old[aa], jpos]*EE[old[bb], jpos]
+                    : aa in [1..#old], bb in [1..#old]
+                ]
+            );
+        end if;
+
+        if #Rseq eq 0 or #old eq 0 then
+            REnew := ZeroMatrix(Integers(), #Rseq, #old);
+        else
+            REnew := Matrix(Integers(), #Rseq, #old,
+                [
+                    RE[a, old[bb]]
+                    + RE[a, jpos]*EE[old[bb], jpos]
+                    : a in [1..#Rseq], bb in [1..#old]
+                ]
+            );
+        end if;
+
+        if #Rseq eq 0 then
+            RRnew := ZeroMatrix(Integers(), 0, 0);
+        else
+            RRnew := Matrix(Integers(), #Rseq, #Rseq,
+                [
+                    RR[a,b] + RE[a,jpos]*RE[b,jpos]
+                    : a in [1..#Rseq], b in [1..#Rseq]
+                ]
+            );
+        end if;
+
+        idxs := newidxs;
+        EE := EEnew;
+        RE := REnew;
+        RR := RRnew;
+    end while;
+
+    return <ok, Rseq, degrees, pointOrder, mults, proximities, initialRR, RR>;
+end function;
+
+
+A8PlaneImageDataRES := function(H, CurMinus2, OrthNeg)
+    local Rseq, C0;
+
+    // We display only the (-2)-curves which are not contracted by H.
+    Rseq := [C0 : C0 in Setseq(CurMinus2) | IntersectionRES(H, C0) gt 0];
+
+    return A8PlaneImageForClassesRES(H, Rseq, OrthNeg);
+end function;
+
+
+A8PrintPlaneImageDataRES := procedure(data)
+    local ok, Rseq, degrees, pointOrder, mults, proximities;
+    local initialRR, finalRR, i, pr;
+
+    ok := data[1];
+    Rseq := data[2];
+    degrees := data[3];
+    pointOrder := data[4];
+    mults := data[5];
+    proximities := data[6];
+    initialRR := data[7];
+    finalRR := data[8];
+
+    if not ok then
+        print "No complete blow-down sequence was found.";
+        print "Partial point order:", pointOrder;
+        return;
+    end if;
+
+    print "point order of the blow-down:";
+    print pointOrder;
+    print "";
+
+    print "proximity relations:";
+    if #proximities eq 0 then
+        print "none";
+    else
+        for pr in proximities do
+            print "p", pr[1], "is proximate to p", pr[2], "with multiplicity", pr[3];
+        end for;
+    end if;
+    print "";
+
+    print "plane images of the displayed curves:";
+    for i in [1..#Rseq] do
+        print "curve", i;
+        print "  class on X       =", Eltseq(Rseq[i]);
+        print "  plane degree     =", degrees[i];
+        print "  multiplicities   =", mults[i];
+        print "  plane self-int   =", finalRR[i,i];
+    end for;
+    print "";
+
+    print "intersection matrix on X:";
+    print initialRR;
+    print "";
+
+    print "intersection matrix after contraction, i.e. in the plane:";
+    print finalRR;
+    print "";
+
+    print "base contribution matrix, plane minus strict transform:";
+    print finalRR - initialRR;
+    print "";
+end procedure;
+
+
+///////////////////////////////////////////////////////////////////////////
+//  Printing one candidate
+///////////////////////////////////////////////////////////////////////////
+
+A8PrintPlaneModelCandidateRES := procedure(label, cand, CurMinus2, CurMinus1)
+    local Pic, K, H, score, rootProducts, orth, orth2, orth1;
+    local ME, dataRoots, F, dataF;
+
+    Pic := PicardLatticeRES();
+    K := CanonicalClassRES(Pic);
+
+    score := cand[1];
+    H := cand[2];
+    rootProducts := cand[3];
+    orth := cand[4];
+    orth2 := cand[5];
+    orth1 := cand[6];
+
+    print "------------------------------------------------------------";
+    print label;
+    print "------------------------------------------------------------";
+
+    print "score =", score;
+    print "H =", Eltseq(H);
+    print "StdForm(H) =", Eltseq(StdFormRES(H));
+    print "H^2 =", SelfIntersectionRES(H);
+    print "H.K =", IntersectionRES(H, K);
+    print "";
+
+    print "products H.C with the (-2)-curves:";
+    print rootProducts;
+    print "";
+
+    print "# orthogonal negative curves =", #orth;
+    print "# orthogonal (-2)-curves     =", #orth2;
+    print "# orthogonal (-1)-curves     =", #orth1;
+    print "";
+
+    print "orthogonal negative curves:";
+    PrintClassSeqRES(orth);
+    print "";
+
+    ME := A8IntersectionMatrixRES(orth, orth);
+    print "intersection matrix of the orthogonal negative curves:";
+    print ME;
+    print "rank =", Rank(ChangeRing(ME, Rationals()));
+    print "determinant =", Determinant(ME);
+    print "";
+
+    print "Plane images of the non-contracted (-2)-curves:";
+    dataRoots := A8PlaneImageDataRES(H, CurMinus2, orth);
+    A8PrintPlaneImageDataRES(dataRoots);
+
+    print "Plane class of the Halphen pencil |-3K|:";
+    F := -3*K;
+    dataF := A8PlaneImageForClassesRES(H, [F], orth);
+    A8PrintPlaneImageDataRES(dataF);
+end procedure;
+
+
+///////////////////////////////////////////////////////////////////////////
+//  Split and non-split wrappers
+///////////////////////////////////////////////////////////////////////////
+
+A8Index3SplitPlaneModelsRES := function(maxd, target, maxout)
+    local fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9;
+
+    fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9 := A8Index3SplitRES();
+
+    return A8FindNefPlaneClassesRES(CurMinus2, CurMinus1, maxd, target, maxout),
+           CurMinus2, CurMinus1;
+end function;
+
+
+A8Index3NonSplitPlaneModelsRES := function(maxd, target, maxout)
+    local fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9;
+
+    fPic, CurMinus2, CurMinus1, M, baseImgs, imagesZ9 := A8Index3NonSplitRES();
+
+    return A8FindNefPlaneClassesRES(CurMinus2, CurMinus1, maxd, target, maxout),
+           CurMinus2, CurMinus1;
+end function;
+
+
+PrintA8Index3PlaneModelsRES := procedure(maxd, target, maxout)
+    local models1, C21, C11, models2, C22, C12, i;
+
+    models1, C21, C11 := A8Index3SplitPlaneModelsRES(maxd, target, maxout);
+    models2, C22, C12 := A8Index3NonSplitPlaneModelsRES(maxd, target, maxout);
+
+    print "============================================================";
+    print "A8, index 3, split case: plane models";
+    print "============================================================";
+    print "# candidates printed =", #models1;
+    print "";
+
+    for i in [1..#models1] do
+        A8PrintPlaneModelCandidateRES(
+            "split case, candidate " cat IntegerToString(i),
+            models1[i], C21, C11
+        );
+    end for;
+
+    print "============================================================";
+    print "A8, index 3, non-split case: plane models";
+    print "============================================================";
+    print "# candidates printed =", #models2;
+    print "";
+
+    for i in [1..#models2] do
+        A8PrintPlaneModelCandidateRES(
+            "non-split case, candidate " cat IntegerToString(i),
+            models2[i], C22, C12
+        );
+    end for;
+end procedure;
+
+
+PrintA8Index3PlaneModelsDefaultRES := procedure()
+    // maxd = 30 is usually enough for the first good plane models.
+    // target = 1 asks for H.C as close as possible to 1 on the (-2)-curves.
+    // maxout = 5 prints the five best candidates in each case.
+    PrintA8Index3PlaneModelsRES(30, 1, 5);
+end procedure;
